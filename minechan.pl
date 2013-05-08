@@ -65,10 +65,14 @@ my $full_map_XY;
 my $ref_full_map_XY;
 my $ready_map_XY = {};
 
+my $check_over = 0;
+my $check_finish = 0;
+my $check_name = 0;
+
 &smile_ckeck();
 
 sub smile_ckeck {
-	
+#	&dt('=Start time.....');
 	# reset storge array and hash.
 	my @base_map;
 	$route_map = {};
@@ -103,10 +107,12 @@ sub smile_ckeck {
 			$full_map_XY->{$X.','.$Y} = {
 											XY		=>	$keyX.','.$keyY,
 											status	=>	$$route_map{$keyX}{$keyY},
+										#	p		=>	5,
 										};
 			$ref_full_map_XY->{$keyX.','.$keyY} = {
 											XY		=>	$X.','.$Y,
 											status	=>	$$route_map{$keyX}{$keyY},
+										#	p		=>	5,
 										};
 			$Y++;
 		}
@@ -123,41 +129,29 @@ sub smile_ckeck {
 
 #主要程式的運作迴圈
 sub play_time {
-	my $check_over = 0;
-	my $check_finish = 0;
-	my $check_name = 0;
 	&first_rand_click();                #第一次隨機點一下地圖
-	&draw_map();                        #重整一次地圖的座標及機率
-	&gameover();                        #檢查是否踩到地雷，是否需要重置
+#	&draw_map();                        #重整一次地圖的座標及機率
+#	&gameover();                        #檢查是否踩到地雷，是否需要重置
 	while ($check_over <= 0) {          #主要迴圈，等待遊戲結束的訊號
 	#	&new_draw_map();
 		&draw_map();                    #重整一次地圖的座標及機率
     #    &dt('draw_map....');
 		&secend_ai();                   #AI的控制
     #    &dt('secend_ai....');
-		$check_over = &gameover();
-    #    &dt('check_over....');
-		$check_finish = &finish();
-    #    &dt('check_finish....');
-		$check_name = &enter_name();
-	#	print STDERR Dumper __FILE__." ".__LINE__,$check_over , $check_finish , $check_name;
         &dt('play roll name....');
-		return if $check_over or $check_finish or $check_name;
 	}
 }
 
 sub first_rand_click {
 	my @tmpA = split/\,/,$full_map_XY->{int(rand $checkXY->{X}).','.int(rand $checkXY->{Y})}->{XY};
 	MouseMoveAbsPix($tmpA[1],$tmpA[0]);
-	print defined($tmpA[1]) ? "first time found at $tmpA[0]:$tmpA[1]\n" : "not found\n";
+	print defined($tmpA[1]) ? "first time found at $tmpA[0]:$tmpA[1] $ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{XY}\n" : "not found\n";
 	SendMouse ( "{LEFTCLICK}" );
 }
 
 #重繪一次地圖，並且將正反向座標及相關紀錄一起紀錄。
 sub draw_map {
-
     my $big = Image::Match->screenshot;
-    #&dt('draw start');
 	for (@base_png_array) {
 		my $num = $_;
 		my @ztmp = $big->match( $base_png->{$num}, 'multiple',1);
@@ -171,24 +165,33 @@ sub draw_map {
 			&around($yy,$xx) if $num > 0;           #around迴圈是查詢某點四周還未開啟的格子。
 		}
 	}
-	#&dt('draw end');
+	
+	#檢查是否爆了或是結束。
+	$check_over = &gameover();
+	$check_finish = &finish();
+	$check_name = &enter_name();
+	return if $check_over or $check_finish or $check_name;
+	
 	my $probability_x = 0;
 	for my $keyX ( sort { $a <=> $b } keys %{$route_map} ) {
 		my $probability_y = 0;
 		for my $keyY ( sort { $a <=> $b } keys %{$$route_map{$keyX}} ) {
-			#print STDERR "($keyX,$keyY) => $$route_map{$keyX}{$keyY}\t";
-	#		print (sprintf "%2d", $$route_map{$keyX}{$keyY});
-	#		print "[".$ref_full_map_XY->{$keyX.','.$keyY}->{XY}."]";
-	#		print "(".$full_map_XY->{$ref_full_map_XY->{$keyX.','.$keyY}->{XY}}->{XY}.")";
-	#		print " ";
+		#	print (sprintf "%2d", $$route_map{$keyX}{$keyY});
+		#	print "[".$ref_full_map_XY->{$keyX.','.$keyY}->{XY}."]";
+			#print "(".$full_map_XY->{$ref_full_map_XY->{$keyX.','.$keyY}->{XY}}->{XY}.")";
+			#print "{".$full_map_XY->{$ref_full_map_XY->{$keyX.','.$keyY}->{XY}}->{p}."}";
+#			my $pp = $full_map_XY->{$ref_full_map_XY->{$keyX.','.$keyY}->{XY}}->{p};
+#			$pp = 0 if !$pp;
+#			print "<".(sprintf "%2.2f",$pp).">";
+#			print " ";
 			$probability_y++;
 		}
 		$checkXY->{Y} = $probability_y;
-	#	print "\n";
+#		print "\n";
 		$probability_x++;
 	}
+#	print "\n";
 	$checkXY->{X} = $probability_x;
-	#&dt('draw end 2');
 }
 
 sub around {
@@ -232,6 +235,9 @@ sub around {
 				$full_map_XY->{$_->[0].','.$_->[1]}->{p} = $p;
 			}
 		#	print STDERR Dumper __FILE__." ".__LINE__,$full_map_XY->{$_->[0].','.$_->[1]}->{p};
+		#	print (sprintf "%2.2f",$full_map_XY->{$_->[0].','.$_->[1]}->{p});
+		#	print "[".$ref_full_map_XY->{$full_map_XY->{$_->[0].','.$_->[1]}->{XY}}->{XY}."] \n";
+			
 			if ($full_map_XY->{$_->[0].','.$_->[1]}->{p} == 1 && $full_map_XY->{$_->[0].','.$_->[1]}->{status} != 15) {
 				my @tmpB = split/\,/,$full_map_XY->{$_->[0].','.$_->[1]}->{XY};
 				&mouse_right_click($tmpB[0],$tmpB[1]);
@@ -243,10 +249,6 @@ sub around {
 			}
 		}
 #		print STDERR Dumper __FILE__." ".__LINE__,$ready_map_XY;
-#		if (defined($ready_map_XY)) {
-#			&first_rand_click();
-#			last;
-#		}
 		for my $key ( sort { $a<=>$b } keys %{$ready_map_XY} ) {
 
 			if ($key == 0) {
@@ -254,7 +256,7 @@ sub around {
 				#print Dumper @tmp;
 				my $XY = int(rand($#tmp - 1));
 				my @tmpA = split/\,/,$tmp[$XY];
-				if ($ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{status} < 0) {
+				if ($ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{status} < 0 && !$ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{p}) {
 					#print STDERR Dumper __FILE__." ".__LINE__,$ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{status};
 					&mouse_left_click($tmpA[0],$tmpA[1]);
 					last;
@@ -262,18 +264,6 @@ sub around {
 			} else {
 				last;
 			}
-
-#			if (defined($ready_map_XY->{$key})) {
-#				my @tmp = @{$ready_map_XY->{$key}};
-#				print Dumper @tmp;
-#				my $XY = int(rand($#tmp - 1));
-#				my @tmpA = split/\,/,$tmp[$XY];
-#				if ($ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{status} < 0) {
-#					#print STDERR Dumper __FILE__." ".__LINE__,$ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{status};
-#					&mouse_left_click($tmpA[0],$tmpA[1]);
-#					last;
-#				}
-#			}
 		}
 			
 	}
@@ -281,14 +271,6 @@ sub around {
 }
 
 sub secend_ai {
-#	$ready_map_XY = {};
-#	for my $X (0..($checkXY->{X} -1)) {
-#		for my $Y (0..($checkXY->{Y} -1)) {
-#			if (defined($full_map_XY->{$X.','.$Y}->{p}) && ($full_map_XY->{$X.','.$Y}->{p} < 1) && ($full_map_XY->{$X.','.$Y}->{status} < 0)) {
-#				push @{$ready_map_XY->{$full_map_XY->{$X.','.$Y}->{p}}} , $full_map_XY->{$X.','.$Y}->{XY};
-#			}
-#		}
-#	}
 #	print STDERR Dumper __FILE__." ".__LINE__,$ready_map_XY;
 	for my $key ( sort { $a<=>$b } keys %{$ready_map_XY} ) {
 		if (defined($ready_map_XY->{$key})) {
@@ -296,7 +278,7 @@ sub secend_ai {
 			#print Dumper @tmp;
 			my $XY = int(rand($#tmp - 1));
 			my @tmpA = split/\,/,$tmp[$XY];
-			if ($ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{status} < 0) {
+			if ($ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{status} < 0 && !$ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{p}) {
                 #print STDERR Dumper __FILE__." ".__LINE__,$ref_full_map_XY->{$tmpA[0].','.$tmpA[1]}->{status};
 				&mouse_left_click($tmpA[0],$tmpA[1]);
 				last;
@@ -305,15 +287,44 @@ sub secend_ai {
 	}
 }
 
+sub draw_draw_map {
+	&dt('draw draw map ....');
+    my $big = Image::Match->screenshot;
+	for (@base_png_array) {
+		my $num = $_;
+		my @ztmp = $big->match( $base_png->{$num}, 'multiple',1);
+		for (0..($#ztmp / 2)) {
+			next if !$ztmp[0];
+			my $yy = pop @ztmp;
+			my $xx = pop @ztmp;
+			$$route_map{$yy}{$xx} = $num;
+			$ref_full_map_XY->{$yy.','.$xx}->{status} = $num;
+			$full_map_XY->{$ref_full_map_XY->{$yy.','.$xx}->{XY}}->{status} = $num;
+			#&around($yy,$xx) if $num > 0;           #around迴圈是查詢某點四周還未開啟的格子。
+		}
+	}
+	#檢查是否爆了或是結束。
+	$check_over = &gameover();
+	$check_finish = &finish();
+	$check_name = &enter_name();
+	return if $check_over or $check_finish or $check_name;
+}
+
 sub mouse_left_click {
 	my $X = shift;
 	my $Y = shift;
 	MouseMoveAbsPix($Y,$X);
 	#print defined($X) ? "LEFT time found at $X:$Y\n" : "not found\n";
-#	&dt('Mouse LEFT click at '.$X.':'.$Y.'....');
+	
+#	&dt('Mouse LEFT click at '.$ref_full_map_XY->{$X.','.$Y}->{XY}.' ....');
 	SendMouse ( "{LEFTCLICK}" );
 	$ref_full_map_XY->{$X.','.$Y}->{status} = 2;
 	$full_map_XY->{$ref_full_map_XY->{$X.','.$Y}->{XY}}->{status} = 2;
+#	$ref_full_map_XY->{$X.','.$Y}->{p} = 0;
+#	$full_map_XY->{$ref_full_map_XY->{$X.','.$Y}->{XY}}->{p} = 0;
+#	&around($Y,$X);
+	&draw_draw_map();				#再畫一次，可以增加判斷的精準度，但~~速度就變慢很多了~~  Orz...  二難...
+#	&mouse_LR_click($X,$Y);
 	return;
 }
 
@@ -326,6 +337,19 @@ sub mouse_right_click {
 	SendMouse ( "{RIGHTCLICK}" );
 	$ref_full_map_XY->{$X.','.$Y}->{status} = 15;
 	$full_map_XY->{$ref_full_map_XY->{$X.','.$Y}->{XY}}->{status} = 15;
+	#&mouse_LR_click($X,$Y);
+	return;
+}
+
+sub mouse_LR_click {
+	my $X = shift;
+	my $Y = shift;
+	my $roll1 = int(rand(1));
+	MouseMoveAbsPix($Y,$X);
+	SendMouse ( "{LEFTDOWN}" );
+	SendMouse ( "{RIGHTDOWN}" );
+	SendMouse ( "{RIGHTUP}" );
+	SendMouse ( "{LEFTUP}" );
 	return;
 }
 
@@ -359,7 +383,8 @@ sub finish {
 	my ( $x, $y) = $big->match( $base_png->{98} );
 	if ($x && $y) {
 		print "bot finish!! \n";
-		sleep 3;
+		#&dt('=Finish time.....');
+		sleep 2;
 		&reset();
 		#return 1;
 	} else {
